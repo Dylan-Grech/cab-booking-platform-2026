@@ -9,7 +9,7 @@ async function getWeather(location) {
 
   if (hasKey) {
     try {
-      const response = await axios.get('https://weatherapi-com.p.rapidapi.com/v1/current.json', {
+      const response = await axios.get('https://weatherapi-com.p.rapidapi.com/current.json', {
         params: { q: location },
         headers: {
           'x-rapidapi-host': 'weatherapi-com.p.rapidapi.com',

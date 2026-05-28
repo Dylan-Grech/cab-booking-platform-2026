@@ -10,22 +10,49 @@ function estimateDistance(from, to) {
   for (let i = 0; i < str.length; i++) {
     hash = (hash * 31 + str.charCodeAt(i)) & 0xffffffff;
   }
-  return 3 + (Math.abs(hash) % 23); // 3–25 km (realistic for Malta)
+  return 3 + (Math.abs(hash) % 23); // 3–25 km
+}
+
+// Geocode a place name → { lat, lng } using OpenStreetMap Nominatim (free, no key)
+async function geocode(place) {
+  const res = await axios.get('https://nominatim.openstreetmap.org/search', {
+    params: { q: place, format: 'json', limit: 1 },
+    headers: { 'User-Agent': 'CabGo-Assignment/1.0' },
+    timeout: 5000,
+  });
+  if (!res.data.length) throw new Error(`Could not geocode location: "${place}"`);
+  return { lat: parseFloat(res.data[0].lat), lng: parseFloat(res.data[0].lon) };
 }
 
 async function getFareFromAPI(from, to) {
-  const response = await axios.get('https://taxi-fare-calculator.p.rapidapi.com/v1/estimate', {
-    params: { source: from, destination: to, currency: 'EUR' },
+  const [dep, arr] = await Promise.all([geocode(from), geocode(to)]);
+
+  const response = await axios.get('https://taxi-fare-calculator.p.rapidapi.com/search-geo', {
+    params: {
+      dep_lat: dep.lat.toFixed(5),
+      dep_lng: dep.lng.toFixed(5),
+      arr_lat: arr.lat.toFixed(5),
+      arr_lng: arr.lng.toFixed(5),
+    },
     headers: {
       'x-rapidapi-host': 'taxi-fare-calculator.p.rapidapi.com',
       'x-rapidapi-key': process.env.RAPIDAPI_KEY,
     },
-    timeout: 5000,
+    timeout: 8000,
   });
-  // Extract the numeric fare from the API response
-  const fare = response.data?.fare ?? response.data?.price ?? response.data?.total;
-  if (!fare) throw new Error('Unexpected API response shape');
-  return { fare: parseFloat(fare), source: 'api', distanceKm: response.data?.distance ?? null };
+
+  const journey = response.data?.journey;
+  if (!journey) throw new Error('Unexpected API response: ' + JSON.stringify(response.data).slice(0, 200));
+
+  const dayFare = journey.fares?.find(f => f.name === 'by Day');
+  const cents   = dayFare?.price_in_cents;
+  if (!cents || cents === 'n/a') throw new Error('Fare not available for this route');
+
+  return {
+    fare: parseFloat((cents / 100).toFixed(2)),
+    distanceKm: journey.distance ?? null,
+    source: 'api',
+  };
 }
 
 // GET /api/fare?from=Valletta&to=Sliema

@@ -1,0 +1,141 @@
+services:
+
+  # ── Customer Service ─────────────────────────────────────────────────────────
+  - type: web
+    name: cabgo-customer
+    runtime: node
+    rootDir: services/customer-service
+    buildCommand: npm install
+    startCommand: node index.js
+    envVars:
+      - key: FIREBASE_PROJECT_ID
+        value: cab-distribute-2026
+      - key: FIREBASE_CLIENT_EMAIL
+        value: firebase-adminsdk-fbsvc@cab-distribute-2026.iam.gserviceaccount.com
+      - key: FIREBASE_PRIVATE_KEY
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+
+  # ── Booking Service ───────────────────────────────────────────────────────────
+  - type: web
+    name: cabgo-booking
+    runtime: node
+    rootDir: services/booking-service
+    buildCommand: npm install
+    startCommand: node index.js
+    envVars:
+      - key: FIREBASE_PROJECT_ID
+        value: cab-distribute-2026
+      - key: FIREBASE_CLIENT_EMAIL
+        value: firebase-adminsdk-fbsvc@cab-distribute-2026.iam.gserviceaccount.com
+      - key: FIREBASE_PRIVATE_KEY
+        sync: false
+      - key: CUSTOMER_SERVICE_URL
+        fromService:
+          name: cabgo-customer
+          type: web
+          property: url
+      - key: CAB_READY_DELAY_MS
+        value: 180000
+
+  # ── Payment Service ───────────────────────────────────────────────────────────
+  - type: web
+    name: cabgo-payment
+    runtime: node
+    rootDir: services/payment-service
+    buildCommand: npm install
+    startCommand: node index.js
+    envVars:
+      - key: FIREBASE_PROJECT_ID
+        value: cab-distribute-2026
+      - key: FIREBASE_CLIENT_EMAIL
+        value: firebase-adminsdk-fbsvc@cab-distribute-2026.iam.gserviceaccount.com
+      - key: FIREBASE_PRIVATE_KEY
+        sync: false
+      - key: BOOKING_SERVICE_URL
+        fromService:
+          name: cabgo-booking
+          type: web
+          property: url
+      - key: FARE_SERVICE_URL
+        fromService:
+          name: cabgo-fare
+          type: web
+          property: url
+
+  # ── Fare Estimation Service ───────────────────────────────────────────────────
+  - type: web
+    name: cabgo-fare
+    runtime: node
+    rootDir: services/fare-estimation-service
+    buildCommand: npm install
+    startCommand: node index.js
+    envVars:
+      - key: RAPIDAPI_KEY
+        sync: false
+
+  # ── Location Service ──────────────────────────────────────────────────────────
+  - type: web
+    name: cabgo-location
+    runtime: node
+    rootDir: services/location-service
+    buildCommand: npm install
+    startCommand: node index.js
+    envVars:
+      - key: FIREBASE_PROJECT_ID
+        value: cab-distribute-2026
+      - key: FIREBASE_CLIENT_EMAIL
+        value: firebase-adminsdk-fbsvc@cab-distribute-2026.iam.gserviceaccount.com
+      - key: FIREBASE_PRIVATE_KEY
+        sync: false
+      - key: RAPIDAPI_KEY
+        sync: false
+
+  # ── API Gateway ───────────────────────────────────────────────────────────────
+  - type: web
+    name: cabgo-gateway
+    runtime: node
+    rootDir: gateway
+    buildCommand: npm install
+    startCommand: node index.js
+    envVars:
+      - key: CUSTOMER_SERVICE_URL
+        fromService:
+          name: cabgo-customer
+          type: web
+          property: url
+      - key: BOOKING_SERVICE_URL
+        fromService:
+          name: cabgo-booking
+          type: web
+          property: url
+      - key: PAYMENT_SERVICE_URL
+        fromService:
+          name: cabgo-payment
+          type: web
+          property: url
+      - key: FARE_SERVICE_URL
+        fromService:
+          name: cabgo-fare
+          type: web
+          property: url
+      - key: LOCATION_SERVICE_URL
+        fromService:
+          name: cabgo-location
+          type: web
+          property: url
+
+  # ── Frontend ──────────────────────────────────────────────────────────────────
+  - type: web
+    name: cabgo-frontend
+    runtime: node
+    rootDir: frontend
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: GATEWAY_URL
+        fromService:
+          name: cabgo-gateway
+          type: web
+          property: url

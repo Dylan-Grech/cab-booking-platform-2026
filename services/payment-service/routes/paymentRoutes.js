@@ -4,8 +4,14 @@ const { db } = require('../config/firebase');
 
 const router = express.Router();
 
-const FARE_SERVICE_URL    = process.env.FARE_SERVICE_URL    || 'http://localhost:3004';
-const BOOKING_SERVICE_URL = process.env.BOOKING_SERVICE_URL || 'http://localhost:3002';
+function normalizeUrl(val, fallback) {
+  if (!val) return fallback;
+  if (val.startsWith('http')) return val;
+  return `https://${val}`;
+}
+
+const FARE_SERVICE_URL    = normalizeUrl(process.env.FARE_SERVICE_URL,    'http://localhost:3004');
+const BOOKING_SERVICE_URL = normalizeUrl(process.env.BOOKING_SERVICE_URL, 'http://localhost:3002');
 
 const CAB_MULTIPLIERS = { Economic: 1, Premium: 1.2, Executive: 1.4 };
 

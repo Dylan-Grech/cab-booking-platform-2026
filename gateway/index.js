@@ -9,11 +9,17 @@ app.use(cors());
 
 const PORT = process.env.PORT || 3000;
 
-const CUSTOMER_SERVICE_URL = process.env.CUSTOMER_SERVICE_URL || 'http://localhost:3001';
-const BOOKING_SERVICE_URL  = process.env.BOOKING_SERVICE_URL  || 'http://localhost:3002';
-const PAYMENT_SERVICE_URL  = process.env.PAYMENT_SERVICE_URL  || 'http://localhost:3003';
-const FARE_SERVICE_URL     = process.env.FARE_SERVICE_URL     || 'http://localhost:3004';
-const LOCATION_SERVICE_URL = process.env.LOCATION_SERVICE_URL || 'http://localhost:3005';
+function normalizeUrl(val, fallback) {
+  if (!val) return fallback;
+  if (val.startsWith('http')) return val;
+  return `https://${val}`;
+}
+
+const CUSTOMER_SERVICE_URL = normalizeUrl(process.env.CUSTOMER_SERVICE_URL, 'http://localhost:3001');
+const BOOKING_SERVICE_URL  = normalizeUrl(process.env.BOOKING_SERVICE_URL,  'http://localhost:3002');
+const PAYMENT_SERVICE_URL  = normalizeUrl(process.env.PAYMENT_SERVICE_URL,  'http://localhost:3003');
+const FARE_SERVICE_URL     = normalizeUrl(process.env.FARE_SERVICE_URL,     'http://localhost:3004');
+const LOCATION_SERVICE_URL = normalizeUrl(process.env.LOCATION_SERVICE_URL, 'http://localhost:3005');
 
 app.use('/api/customers', createProxyMiddleware({ target: CUSTOMER_SERVICE_URL, changeOrigin: true }));
 app.use('/api/bookings',  createProxyMiddleware({ target: BOOKING_SERVICE_URL,  changeOrigin: true }));

@@ -7,8 +7,10 @@ const PORT = process.env.PORT || 8080;
 
 // Inject GATEWAY_URL so the frontend JS knows where to send requests
 app.get('/config.js', (req, res) => {
+  const raw = process.env.GATEWAY_URL || 'http://localhost:3000';
+  const gatewayUrl = raw.startsWith('http') ? raw : `https://${raw}`;
   res.type('application/javascript');
-  res.send(`window.GATEWAY_URL = '${process.env.GATEWAY_URL || 'http://localhost:3000'}';`);
+  res.send(`window.GATEWAY_URL = '${gatewayUrl}';`);
 });
 
 app.use(express.static(path.join(__dirname, 'public')));

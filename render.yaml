@@ -35,7 +35,7 @@ services:
         fromService:
           name: cabgo-customer
           type: web
-          property: url
+          property: host
       - key: CAB_READY_DELAY_MS
         value: 180000
 
@@ -57,12 +57,12 @@ services:
         fromService:
           name: cabgo-booking
           type: web
-          property: url
+          property: host
       - key: FARE_SERVICE_URL
         fromService:
           name: cabgo-fare
           type: web
-          property: url
+          property: host
 
   # ── Fare Estimation Service ───────────────────────────────────────────────────
   - type: web
@@ -104,27 +104,27 @@ services:
         fromService:
           name: cabgo-customer
           type: web
-          property: url
+          property: host
       - key: BOOKING_SERVICE_URL
         fromService:
           name: cabgo-booking
           type: web
-          property: url
+          property: host
       - key: PAYMENT_SERVICE_URL
         fromService:
           name: cabgo-payment
           type: web
-          property: url
+          property: host
       - key: FARE_SERVICE_URL
         fromService:
           name: cabgo-fare
           type: web
-          property: url
+          property: host
       - key: LOCATION_SERVICE_URL
         fromService:
           name: cabgo-location
           type: web
-          property: url
+          property: host
 
   # ── Frontend ──────────────────────────────────────────────────────────────────
   - type: web
@@ -138,4 +138,4 @@ services:
         fromService:
           name: cabgo-gateway
           type: web
-          property: url
+          property: host

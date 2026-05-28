@@ -4,7 +4,13 @@ const { db } = require('../config/firebase');
 
 const router = express.Router();
 
-const CUSTOMER_SERVICE_URL = process.env.CUSTOMER_SERVICE_URL || 'http://localhost:3001';
+function normalizeUrl(val, fallback) {
+  if (!val) return fallback;
+  if (val.startsWith('http')) return val;
+  return `https://${val}`;
+}
+
+const CUSTOMER_SERVICE_URL = normalizeUrl(process.env.CUSTOMER_SERVICE_URL, 'http://localhost:3001');
 
 const CAB_TYPES = ['Economic', 'Premium', 'Executive'];
 

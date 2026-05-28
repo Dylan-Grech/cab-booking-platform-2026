@@ -1,3 +1,5 @@
+// Customer routes — register, login, profile, and notifications
+// Passwords are hashed with bcrypt before storing; JWT tokens are used for authentication
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -7,6 +9,7 @@ const auth = require('../middleware/auth');
 const router = express.Router();
 
 // POST /api/customers/register
+// Creates a new user account; password is hashed with bcrypt (salt rounds = 10)
 router.post('/register', async (req, res) => {
   try {
     const { firstName, lastName, email, password } = req.body;
@@ -15,6 +18,7 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'All fields are required' });
     }
 
+    // Prevent duplicate accounts for the same email
     const existing = await db.collection('users').where('email', '==', email).get();
     if (!existing.empty) {
       return res.status(409).json({ error: 'Email already registered' });
@@ -33,6 +37,7 @@ router.post('/register', async (req, res) => {
 
     await userRef.set(user);
 
+    // Issue a JWT valid for 7 days so the user stays logged in
     const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '7d' });
     const { password: _, ...userWithoutPassword } = user;
 
@@ -43,6 +48,7 @@ router.post('/register', async (req, res) => {
 });
 
 // POST /api/customers/login
+// Verifies credentials using bcrypt.compare and returns a JWT token
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -57,6 +63,7 @@ router.post('/login', async (req, res) => {
     }
 
     const user = snapshot.docs[0].data();
+    // bcrypt.compare checks the plain password against the stored hash
     const match = await bcrypt.compare(password, user.password);
     if (!match) {
       return res.status(401).json({ error: 'Invalid credentials' });
@@ -71,12 +78,13 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// GET /api/customers/:id  (protected)
+// GET /api/customers/:id  (protected — requires valid JWT)
 router.get('/:id', auth, async (req, res) => {
   try {
     const doc = await db.collection('users').doc(req.params.id).get();
     if (!doc.exists) return res.status(404).json({ error: 'User not found' });
 
+    // Never return the hashed password to the client
     const { password: _, ...user } = doc.data();
     res.json({ user });
   } catch (err) {
@@ -85,6 +93,7 @@ router.get('/:id', auth, async (req, res) => {
 });
 
 // GET /api/customers/:id/notifications  (protected)
+// Sorted in JS instead of Firestore orderBy to avoid needing a composite index
 router.get('/:id/notifications', auth, async (req, res) => {
   try {
     const snapshot = await db
@@ -101,7 +110,8 @@ router.get('/:id/notifications', auth, async (req, res) => {
   }
 });
 
-// POST /api/customers/:id/notifications  (internal — used by other services)
+// POST /api/customers/:id/notifications  (internal — called by booking service events)
+// No JWT required here because only internal services call this endpoint
 router.post('/:id/notifications', async (req, res) => {
   try {
     const { message, type } = req.body;

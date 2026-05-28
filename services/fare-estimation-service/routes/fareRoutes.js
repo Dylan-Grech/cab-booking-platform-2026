@@ -1,19 +1,22 @@
+// Fare estimation routes — retrieves taxi fare from RapidAPI or falls back to a formula
+// Uses OpenStreetMap Nominatim (free, no key) to geocode place names into coordinates
 const express = require('express');
 const axios = require('axios');
 
 const router = express.Router();
 
-// Deterministic distance estimate from two location strings (fallback only)
+// Deterministic fallback distance estimate based on a hash of the location strings
+// Returns a value between 3 and 25 km — used when no RapidAPI key is configured
 function estimateDistance(from, to) {
   const str = (from + to).toLowerCase();
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
     hash = (hash * 31 + str.charCodeAt(i)) & 0xffffffff;
   }
-  return 3 + (Math.abs(hash) % 23); // 3–25 km
+  return 3 + (Math.abs(hash) % 23);
 }
 
-// Geocode a place name → { lat, lng } using OpenStreetMap Nominatim (free, no key)
+// Converts a place name (e.g. "Valletta") into lat/lng using OpenStreetMap Nominatim
 async function geocode(place) {
   const res = await axios.get('https://nominatim.openstreetmap.org/search', {
     params: { q: place, format: 'json', limit: 1 },
@@ -24,6 +27,8 @@ async function geocode(place) {
   return { lat: parseFloat(res.data[0].lat), lng: parseFloat(res.data[0].lon) };
 }
 
+// Calls the RapidAPI Taxi Fare Calculator using geocoded coordinates
+// Returns the daytime fare in EUR and the journey distance in km
 async function getFareFromAPI(from, to) {
   const [dep, arr] = await Promise.all([geocode(from), geocode(to)]);
 
@@ -44,6 +49,7 @@ async function getFareFromAPI(from, to) {
   const journey = response.data?.journey;
   if (!journey) throw new Error('Unexpected API response: ' + JSON.stringify(response.data).slice(0, 200));
 
+  // Extract the daytime fare from the fares array
   const dayFare = journey.fares?.find(f => f.name === 'by Day');
   const cents   = dayFare?.price_in_cents;
   if (!cents || cents === 'n/a') throw new Error('Fare not available for this route');
@@ -56,6 +62,7 @@ async function getFareFromAPI(from, to) {
 }
 
 // GET /api/fare?from=Valletta&to=Sliema
+// Tries the RapidAPI first; falls back to the formula-based estimate if the key is missing or the call fails
 router.get('/', async (req, res) => {
   try {
     const { from, to } = req.query;
@@ -72,7 +79,7 @@ router.get('/', async (req, res) => {
       }
     }
 
-    // Fallback: formula-based estimate
+    // Fallback: simple formula — base fare €3 + €0.80 per km
     const distanceKm = estimateDistance(from, to);
     const fare = parseFloat((3.0 + distanceKm * 0.8).toFixed(2));
     res.json({ fare, distanceKm, source: 'fallback' });

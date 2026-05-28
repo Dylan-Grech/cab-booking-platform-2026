@@ -1,9 +1,13 @@
+// Location routes — manage saved pickup locations and fetch live weather for each
+// Weather data is retrieved from WeatherAPI via RapidAPI; falls back to static data if no key
 const express = require('express');
 const axios = require('axios');
 const { db } = require('../config/firebase');
 
 const router = express.Router();
 
+// Fetches current weather for a given address string using WeatherAPI (RapidAPI)
+// Returns a fallback object with simulated data when no API key is set
 async function getWeather(location) {
   const hasKey = process.env.RAPIDAPI_KEY && process.env.RAPIDAPI_KEY !== 'your_rapidapi_key_here';
 
@@ -32,7 +36,7 @@ async function getWeather(location) {
     }
   }
 
-  // Fallback: simulated weather
+  // Fallback: return simulated weather so the UI still works without an API key
   return {
     temperatureC: 22,
     feelsLikeC: 21,
@@ -44,7 +48,7 @@ async function getWeather(location) {
   };
 }
 
-// POST /api/locations
+// POST /api/locations — save a new favourite pickup location for a user
 router.post('/', async (req, res) => {
   try {
     const { userId, name, address } = req.body;
@@ -68,7 +72,8 @@ router.post('/', async (req, res) => {
   }
 });
 
-// GET /api/locations/:userId/weather  — must come before /:userId
+// GET /api/locations/:userId/weather — returns each saved location with its current weather
+// This route must be defined BEFORE /:userId to prevent Express matching "weather" as an ID
 router.get('/:userId/weather', async (req, res) => {
   try {
     const snapshot = await db
@@ -78,6 +83,7 @@ router.get('/:userId/weather', async (req, res) => {
 
     if (snapshot.empty) return res.json({ weatherData: [] });
 
+    // Fetch weather for all locations in parallel using Promise.all
     const results = await Promise.all(
       snapshot.docs.map(async (doc) => {
         const loc = doc.data();
@@ -92,7 +98,7 @@ router.get('/:userId/weather', async (req, res) => {
   }
 });
 
-// GET /api/locations/:userId
+// GET /api/locations/:userId — list all saved locations for a user
 router.get('/:userId', async (req, res) => {
   try {
     const snapshot = await db
@@ -107,7 +113,7 @@ router.get('/:userId', async (req, res) => {
   }
 });
 
-// PUT /api/locations/:id
+// PUT /api/locations/:id — update the name or address of a saved location
 router.put('/:id', async (req, res) => {
   try {
     const { name, address } = req.body;
@@ -131,7 +137,7 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// DELETE /api/locations/:id
+// DELETE /api/locations/:id — remove a saved location
 router.delete('/:id', async (req, res) => {
   try {
     const ref = db.collection('locations').doc(req.params.id);

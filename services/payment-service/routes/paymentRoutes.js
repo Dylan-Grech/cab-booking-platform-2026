@@ -1,9 +1,12 @@
+// Payment routes — calculate total fare and store payment records
+// Total price = cab_fare × cab_multiplier × daytime_multiplier × passengers_multiplier × discount
 const express = require('express');
 const axios = require('axios');
 const { db } = require('../config/firebase');
 
 const router = express.Router();
 
+// Prepend https:// when Render injects a bare hostname instead of a full URL
 function normalizeUrl(val, fallback) {
   if (!val) return fallback;
   if (val.startsWith('http')) return val;
@@ -13,20 +16,23 @@ function normalizeUrl(val, fallback) {
 const FARE_SERVICE_URL    = normalizeUrl(process.env.FARE_SERVICE_URL,    'http://localhost:3004');
 const BOOKING_SERVICE_URL = normalizeUrl(process.env.BOOKING_SERVICE_URL, 'http://localhost:3002');
 
+// Multipliers per cab type as defined in the assignment spec
 const CAB_MULTIPLIERS = { Economic: 1, Premium: 1.2, Executive: 1.4 };
 
+// Daytime multiplier: night rate (midnight–8am) = 1.2, otherwise 1
 function getDaytimeMultiplier(time) {
   const [hours] = time.split(':').map(Number);
-  return hours >= 8 ? 1 : 1.2; // midnight–8am = 1.2
+  return hours >= 8 ? 1 : 1.2;
 }
 
+// Passengers multiplier: 1–4 passengers = 1, 5–8 = 2, >8 not allowed
 function getPassengersMultiplier(passengers) {
   if (passengers <= 4) return 1;
   if (passengers <= 8) return 2;
   throw new Error('More than 8 passengers is not allowed');
 }
 
-// POST /api/payments
+// POST /api/payments — process payment for a confirmed booking
 router.post('/', async (req, res) => {
   try {
     const { bookingId, userId } = req.body;
@@ -34,13 +40,13 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'bookingId and userId are required' });
     }
 
-    // Check payment doesn't already exist
+    // Prevent duplicate payments for the same booking
     const existing = await db.collection('payments').where('bookingId', '==', bookingId).get();
     if (!existing.empty) {
       return res.status(409).json({ error: 'Payment already processed for this booking' });
     }
 
-    // Fetch booking details
+    // Fetch the booking details from the booking microservice
     const bookingRes = await axios.get(`${BOOKING_SERVICE_URL}/api/bookings/${bookingId}`);
     const booking = bookingRes.data.booking;
 
@@ -48,18 +54,18 @@ router.post('/', async (req, res) => {
       return res.status(403).json({ error: 'This booking does not belong to this user' });
     }
 
-    // Fetch base fare from fare estimation service
+    // Fetch the base fare from the fare estimation microservice (calls RapidAPI internally)
     const fareRes = await axios.get(`${FARE_SERVICE_URL}/api/fare`, {
       params: { from: booking.startLocation, to: booking.endLocation },
     });
     const cabFare = fareRes.data.fare;
 
-    // Apply multipliers
+    // Apply all multipliers
     const cabMultiplier        = CAB_MULTIPLIERS[booking.cabType];
     const daytimeMultiplier    = getDaytimeMultiplier(booking.time);
     const passengersMultiplier = getPassengersMultiplier(booking.passengers);
 
-    // Check if user has an unused discount (Task 5)
+    // Check if the user has an unused 10% discount (earned after 3 bookings — Task 5)
     const discountFlag = await db.collection('discountFlags').doc(userId).get();
     const discountUsed = discountFlag.exists && discountFlag.data().used;
     const discount     = discountFlag.exists && !discountUsed ? 0.9 : 1;
@@ -68,12 +74,12 @@ router.post('/', async (req, res) => {
       (cabFare * cabMultiplier * daytimeMultiplier * passengersMultiplier * discount).toFixed(2)
     );
 
-    // Mark discount as used if it was applied
+    // Mark the discount as used so it can only be applied once
     if (discount === 0.9) {
       await db.collection('discountFlags').doc(userId).update({ used: true });
     }
 
-    // Store payment
+    // Store the full payment record including all multipliers for audit trail purposes
     const paymentRef = db.collection('payments').doc();
     const payment = {
       id: paymentRef.id,
@@ -97,7 +103,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-// GET /api/payments/:bookingId
+// GET /api/payments/:bookingId — retrieve payment details for a booking
 router.get('/:bookingId', async (req, res) => {
   try {
     const snapshot = await db
